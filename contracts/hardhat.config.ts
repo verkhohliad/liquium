@@ -1,9 +1,29 @@
-import type { HardhatUserConfig } from "hardhat/config";
+import { defineConfig } from "hardhat/config";
+import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 import { config as dotenvConfig } from "dotenv";
 
 dotenvConfig({ path: "../.env" });
 
-const config: HardhatUserConfig = {
+export default defineConfig({
+  plugins: [hardhatEthers, hardhatVerify],
+  
+  verify: {
+    etherscan: {
+      apiKey: process.env.FLARE_EXPLORER_API_KEY || "verifyContract",
+    },
+    // @ts-ignore
+    customChains: [
+      {
+        network: "coston2",
+        chainId: 114,
+        urls: {
+          apiURL: "https://coston2-explorer.flare.network/api",
+          browserURL: "https://coston2-explorer.flare.network",
+        },
+      },
+    ],
+  },
   solidity: {
     version: "0.8.27",
     settings: {
@@ -64,6 +84,4 @@ const config: HardhatUserConfig = {
     outDir: "typechain-types",
     target: "ethers-v6",
   },
-};
-
-export default config;
+});
