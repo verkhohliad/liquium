@@ -1,0 +1,9 @@
+{
+  "project_name": "liquium",
+  "neo4j_uri": "neo4j://localhost:7687",
+  "neo4j_auth": ["neo4j", "password"],
+  "description": "Liquium - Cross-chain state-channel-powered deal vaults for LPs",
+  "repository": "https://github.com/verkhohliad/liquium",
+  "created_at": "2025-11-22T01:43:00Z",
+  "tags": ["hackathon", "ethglobal", "defi", "cross-chain", "state-channels"]
+}

@@ -1,0 +1,93 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Production builds
+dist/
+build/
+.next/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Hardhat
+cache/
+artifacts/
+typechain-types/
+
+# Smart contract artifacts
+contracts/artifacts/
+contracts/cache/
+contracts/typechain/
+
+# Backend
+backend/dist/
+backend/.turbo/
+
+# Frontend
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+
+# Turbo
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Debug
+.vscode-test/
+
+# Package manager locks (keep pnpm-lock.yaml, ignore others)
+package-lock.json
+yarn.lock
+
+# Optional: Deployment artifacts
+deployments/localhost/
+deployments/hardhat/
+
+# Sensitive data
+*.key
+*.pem
+secrets/

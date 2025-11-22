@@ -1,0 +1,46 @@
+{
+  "name": "liquium",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Liquium - Cross-chain LP vaults powered by state channels",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/verkhohliad/liquium"
+  },
+  "author": "Liquium Team",
+  "license": "MIT",
+  "workspaces": [
+    "contracts",
+    "contracts-remote",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,sol}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,sol}\"",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "contracts:compile": "pnpm --filter @liquium/contracts compile",
+    "contracts:test": "pnpm --filter @liquium/contracts test",
+    "contracts:deploy": "pnpm --filter @liquium/contracts deploy",
+    "backend:dev": "pnpm --filter @liquium/backend dev",
+    "backend:build": "pnpm --filter @liquium/backend build",
+    "frontend:dev": "pnpm --filter @liquium/frontend dev",
+    "frontend:build": "pnpm --filter @liquium/frontend build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.2.0",
+    "prettier-plugin-solidity": "^1.3.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.3.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
