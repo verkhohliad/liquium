@@ -1,0 +1,37 @@
+{
+  "name": "@liquium/contracts",
+  "version": "0.1.0",
+  "description": "Liquium smart contracts on Flare",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "test:gas": "REPORT_GAS=true hardhat test",
+    "deploy": "hardhat deploy",
+    "deploy:coston2": "hardhat deploy --network coston2",
+    "verify": "hardhat verify",
+    "clean": "hardhat clean && rm -rf cache artifacts typechain-types",
+    "typechain": "hardhat typechain"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-viem": "^2.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@types/chai": "^4.3.0",
+    "@types/mocha": "^10.0.0",
+    "@types/node": "^20.10.0",
+    "chai": "^4.3.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^3.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0",
+    "viem": "^2.39.3"
+  }
+}
