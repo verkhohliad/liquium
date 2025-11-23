@@ -29,5 +29,5 @@ export const config = getDefaultConfig({
   appName: 'Liquium',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'liquium-default-project-id',
   chains: [flare, base],
-  ssr: true,
+  ssr: false, // Disable SSR to avoid indexedDB errors in Docker
 });

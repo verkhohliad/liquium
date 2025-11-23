@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: liquium-db
+    restart: always
+    environment:
+      POSTGRES_USER: liquium
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
+      POSTGRES_DB: liquium
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - liquium-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liquium"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: liquium-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://liquium:${POSTGRES_PASSWORD:-changeme123}@postgres:5432/liquium
+      NODE_ENV: production
+      PORT: 3000
+      CORS_ORIGIN: http://94.103.168.88
+    env_file:
+      - ./backend/.env.production
+    networks:
+      - liquium-network
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && node dist/index.js"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://94.103.168.88/api
+    container_name: liquium-frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - liquium-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: liquium-nginx
+    restart: always
+    depends_on:
+      - frontend
+      - backend
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - liquium-network
+    ports:
+      - "80:80"
+
+volumes:
+  postgres-data:
+
+networks:
+  liquium-network:
+    driver: bridge

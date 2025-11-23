@@ -1,31 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState } from 'react';
 import { Header } from '@/components/Header';
-import { dealsApi, type Deal } from '@/lib/api';
-import { formatAmount, formatDate, getStatusColor } from '@/lib/utils';
+import { DepositModal } from '@/components/DepositModal';
+import { mockDeals, type MockDeal } from '@/lib/mockData';
 
 export default function DealsPage() {
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState<MockDeal | undefined>();
   const [filter, setFilter] = useState<string>('all');
+  
+  // Use mock data for demo
+  const deals = mockDeals;
+  
+  // Filter deals
+  const filteredDeals = filter === 'all' 
+    ? deals 
+    : deals.filter(d => d.status === filter);
 
-  useEffect(() => {
-    loadDeals();
-  }, [filter]);
-
-  const loadDeals = async () => {
-    try {
-      setLoading(true);
-      const params = filter !== 'all' ? { status: filter } : {};
-      const response = await dealsApi.list(params);
-      setDeals(response.deals || []);
-    } catch (error) {
-      console.error('Failed to load deals:', error);
-    } finally {
-      setLoading(false);
-    }
+  const handleDeposit = (deal: MockDeal) => {
+    setSelectedDeal(deal);
+    setIsModalOpen(true);
   };
 
   return (
@@ -34,77 +29,100 @@ export default function DealsPage() {
       
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-4xl font-bold">Deals</h1>
+          <h1 className="text-4xl font-bold">Active Deals</h1>
           
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg"
+            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500"
           >
             <option value="all">All Status</option>
-            <option value="CREATED">Created</option>
-            <option value="LOCKED">Locked</option>
-            <option value="ACTIVE">Active</option>
-            <option value="SETTLED">Settled</option>
+            <option value="active">Active</option>
+            <option value="locked">Locked</option>
+            <option value="settled">Settled</option>
           </select>
         </div>
 
-        {loading ? (
-          <div className="text-center py-20">
-            <div className="text-gray-400">Loading deals...</div>
-          </div>
-        ) : deals.length === 0 ? (
+        {filteredDeals.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-gray-400 mb-4">No deals found</div>
             <p className="text-sm text-gray-500">
-              Deals will appear here once created by the protocol
+              Try changing the filter
             </p>
           </div>
         ) : (
           <div className="grid gap-6">
-            {deals.map((deal) => (
-              <Link
+            {filteredDeals.map((deal) => (
+              <div
                 key={deal.id}
-                href={`/deals/${deal.id}`}
-                className="block p-6 rounded-xl bg-gray-800/50 border border-gray-700 hover:border-purple-500/50 transition"
+                className="p-6 rounded-xl bg-gray-800/50 border border-gray-700 hover:border-purple-500/50 transition"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-xl font-bold mb-2">Deal #{deal.id}</h3>
-                    <div className={`inline-block px-3 py-1 rounded-full text-sm ${getStatusColor(deal.status)}`}>
-                      {deal.status}
+                    <h3 className="text-2xl font-bold mb-2">{deal.name}</h3>
+                    <div className={`inline-block px-3 py-1 rounded-full text-sm ${
+                      deal.status === 'active' ? 'bg-green-500/10 text-green-500' :
+                      deal.status === 'locked' ? 'bg-yellow-500/10 text-yellow-500' :
+                      'bg-gray-500/10 text-gray-500'
+                    }`}>
+                      {deal.status.toUpperCase()}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-purple-400">
-                      {deal.expectedYield}% APY
+                    <div className="text-3xl font-bold text-purple-400">
+                      {deal.apy}%
                     </div>
+                    <div className="text-sm text-gray-400">APY</div>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
                   <div>
-                    <div className="text-gray-400">Total Deposited</div>
-                    <div className="font-semibold">{formatAmount(deal.totalDeposited)} tokens</div>
+                    <div className="text-gray-400">Asset</div>
+                    <div className="font-semibold">{deal.depositToken}</div>
                   </div>
                   <div>
-                    <div className="text-gray-400">Target Chain</div>
-                    <div className="font-semibold">Chain #{deal.targetChainId}</div>
+                    <div className="text-gray-400">Chain</div>
+                    <div className="font-semibold">{deal.chain}</div>
                   </div>
                   <div>
-                    <div className="text-gray-400">Created</div>
-                    <div className="font-semibold">{formatDate(deal.createdAt)}</div>
+                    <div className="text-gray-400">TVL</div>
+                    <div className="font-semibold">${deal.tvl}</div>
                   </div>
                   <div>
-                    <div className="text-gray-400">Positions</div>
-                    <div className="font-semibold">{deal.positions?.length || 0}</div>
+                    <div className="text-gray-400">Min Deposit</div>
+                    <div className="font-semibold">{deal.minDeposit} {deal.depositToken}</div>
                   </div>
                 </div>
-              </Link>
+
+                <div className="flex gap-3">
+                  {deal.status === 'active' && (
+                    <button
+                      onClick={() => handleDeposit(deal)}
+                      className="flex-1 px-6 py-3 bg-gradient-purple rounded-lg font-semibold hover:opacity-90 transition"
+                    >
+                      Deposit {deal.depositToken}
+                    </button>
+                  )}
+                  <button
+                    className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition"
+                    onClick={() => alert(`View details for ${deal.name}`)}
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </main>
+
+      {/* Deposit Modal */}
+      <DepositModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        deal={selectedDeal}
+      />
     </div>
   );
 }

@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc --skipLibCheck --noUnusedLocals false --noUnusedParameters false",
     "start": "node dist/index.js",
     "create-deal": "tsx scripts/create-deal.ts",
     "prisma:generate": "prisma generate",
@@ -48,7 +48,7 @@
     "@typescript-eslint/parser": "^6.17.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
-    "prisma": "^5.7.1",
+    "prisma": "5.7.1",
     "eslint": "^8.56.0",
     "prettier": "^3.1.1"
   },

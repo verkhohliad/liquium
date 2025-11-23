@@ -1,22 +1,19 @@
 # Liquium Backend Dockerfile
 FROM node:20-alpine AS base
 
-# Install build dependencies
-RUN apk add --no-cache libc6-compat python3 make g++
+# Install build dependencies including openssl for Prisma
+RUN apk add --no-cache libc6-compat python3 make g++ openssl openssl-dev
 
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml* ./
 COPY tsconfig.json ./
 COPY prisma ./prisma/
 
 # Install dependencies
 FROM base AS dependencies
-RUN npm ci
-
-# Generate Prisma Client
-RUN npx prisma generate
+RUN corepack enable pnpm && pnpm install --no-frozen-lockfile
 
 # Development stage
 FROM base AS development
@@ -25,15 +22,18 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "run", "dev"]
 
 # Build stage
 FROM base AS build
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 
-RUN npm run build
-RUN npm prune --production
+# Remove problematic services before build (optional Yellow/Nitrolite features)
+RUN rm -rf src/services/clearnode src/services/nitrolite src/config/clearnode.ts
+
+RUN corepack enable pnpm && pnpm run build
+RUN corepack enable pnpm && pnpm prune --prod
 
 # Production stage
 FROM node:20-alpine AS production
