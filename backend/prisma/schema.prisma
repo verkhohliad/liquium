@@ -1,0 +1,105 @@
+// Prisma schema for Liquium backend database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Deals tracked from on-chain events
+model Deal {
+  id              Int       @id @default(autoincrement())
+  dealId          Int       @unique // On-chain deal ID
+  depositToken    String
+  targetToken     String
+  targetChainId   Int
+  minDeposit      String    // BigInt as string
+  maxDeposit      String    // BigInt as string
+  totalDeposited  String    // BigInt as string
+  startTime       DateTime
+  duration        Int       // Seconds
+  status          String    // DealStatus enum
+  expectedYield   Int       // Basis points
+  channelId       String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  deposits        Deposit[]
+  rewards         Reward[]
+
+  @@index([status])
+}
+
+// User deposits tracked from Deposited events
+model Deposit {
+  id              Int       @id @default(autoincrement())
+  dealId          Int
+  userAddress     String
+  positionId      Int       @unique // NFT token ID
+  amount          String    // BigInt as string
+  timestamp       DateTime
+  txHash          String
+
+  deal            Deal      @relation(fields: [dealId], references: [dealId])
+
+  createdAt       DateTime  @default(now())
+
+  @@index([userAddress])
+  @@index([dealId])
+}
+
+// User rewards and Yellow channels
+model Reward {
+  id              Int       @id @default(autoincrement())
+  dealId          Int
+  userAddress     String
+  rewardShare     String    // BigInt as string
+  yellowAddress   String?
+  channelId       String?
+  channelBalance  String?   // BigInt as string
+  distributed     Boolean   @default(false)
+  claimed         Boolean   @default(false)
+
+  deal            Deal      @relation(fields: [dealId], references: [dealId])
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([dealId, userAddress])
+  @@index([userAddress])
+  @@index([channelId])
+}
+
+// Blockchain events log (for debugging and auditing)
+model Event {
+  id              Int       @id @default(autoincrement())
+  eventName       String
+  dealId          Int?
+  userAddress     String?
+  data            Json
+  blockNumber     Int
+  txHash          String
+  timestamp       DateTime
+
+  createdAt       DateTime  @default(now())
+
+  @@index([eventName])
+  @@index([dealId])
+  @@index([txHash])
+}
+
+// User profiles (optional - for future features)
+model User {
+  id              Int       @id @default(autoincrement())
+  address         String    @unique
+  yellowAddress   String?
+  email           String?
+  notifications   Boolean   @default(true)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

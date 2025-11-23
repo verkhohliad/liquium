@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Deal {
+  id              String   @id @default(uuid())
+  dealId          Int      @unique
+  depositToken    String
+  minDeposit      String
+  maxDeposit      String
+  totalDeposited  String   @default("0")
+  startTime       DateTime
+  duration        Int
+  status          DealStatus
+  expectedYield   Int
+  channelId       String?
+
+  deposits        Deposit[]
+  rewards         Reward[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([dealId])
+}
+
+enum DealStatus {
+  Active
+  Locked
+  Settling
+  Finalized
+  Cancelled
+}
+
+model Deposit {
+  id              String   @id @default(uuid())
+  dealId          Int
+  deal            Deal     @relation(fields: [dealId], references: [dealId])
+
+  userAddress     String
+  amount          String
+  positionId      Int      @unique
+  yellowAddress   String?
+
+  txHash          String
+  blockNumber     Int
+  timestamp       DateTime
+
+  createdAt       DateTime @default(now())
+
+  @@index([userAddress])
+  @@index([dealId])
+  @@index([positionId])
+}
+
+model Reward {
+  id              String   @id @default(uuid())
+  dealId          Int
+  deal            Deal     @relation(fields: [dealId], references: [dealId])
+
+  userAddress     String
+  rewardAmount    String
+  yellowChannelId String?
+  claimed         Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userAddress])
+  @@index([dealId])
+  @@index([claimed])
+}
+
+model YellowChannel {
+  id              String   @id @default(uuid())
+  channelId       String   @unique
+  dealId          Int
+  userAddress     String
+  yellowAddress   String
+  rewardAmount    String
+  status          String   @default("open")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userAddress])
+  @@index([dealId])
+}
+
+model EventLog {
+  id              String   @id @default(uuid())
+  eventName       String
+  contractAddress String
+  txHash          String
+  blockNumber     Int
+  logIndex        Int
+  args            String   // JSON stringified
+  timestamp       DateTime
+
+  createdAt       DateTime @default(now())
+
+  @@unique([txHash, logIndex])
+  @@index([eventName])
+  @@index([contractAddress])
+  @@index([blockNumber])
+}

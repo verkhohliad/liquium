@@ -1,0 +1,39 @@
+{
+  "name": "liquium-backend",
+  "version": "1.0.0",
+  "description": "Liquium backend API and event indexer",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "keywords": ["liquium", "defi", "yellow-network"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.15.0",
+    "@prisma/client": "^6.2.1",
+    "bull": "^4.16.3",
+    "redis": "^4.7.0",
+    "axios": "^1.7.9",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^22.10.5",
+    "@types/bull": "^4.10.0",
+    "typescript": "^5.7.3",
+    "tsx": "^4.19.2",
+    "nodemon": "^3.1.9",
+    "prisma": "^6.2.1"
+  }
+}
