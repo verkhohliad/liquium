@@ -11,8 +11,9 @@ import "../integrations/flare/FlarePriceReader.sol";
 
 /**
  * @title DealVault
- * @notice Main vault for LP deposits with state channel integration
- * @dev Integrates Yellow/Nitrolite channels, Flare FTSO pricing, and position NFTs
+ * @notice Main vault for user deposits with protocol yield integration
+ * @dev Single-token deposits - users deposit and receive rewards in the same token
+ * Protocol dictates actual yield through external integrations
  */
 contract DealVault is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -29,9 +30,7 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
     /// @notice Deal parameters
     struct Deal {
         uint256 dealId;                // Unique deal identifier
-        address depositToken;          // Token LPs deposit
-        address targetToken;           // Token for trading/lending
-        uint256 targetChainId;         // Target chain for operations
+        address depositToken;          // Token users deposit (same token for rewards)
         uint256 minDeposit;            // Minimum deposit amount
         uint256 maxDeposit;            // Maximum deposit amount
         uint256 totalDeposited;        // Total amount deposited
@@ -40,6 +39,14 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
         DealStatus status;             // Current deal status
         uint256 expectedYield;         // Expected yield in basis points
         bytes32 channelId;             // Associated state channel ID
+    }
+
+    /// @notice User deposit tracking for reward distribution
+    struct UserDeposit {
+        uint256 amount;                // Amount deposited by user
+        address yellowAddress;         // User's Yellow Network trading address
+        uint256 rewardShare;           // Calculated reward amount
+        bool rewardsClaimed;           // Whether rewards have been claimed
     }
 
     /// @notice Position NFT contract
@@ -63,6 +70,15 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
     /// @notice Mapping from token address to FTSO symbol
     mapping(address => string) public tokenSymbols;
 
+    /// @notice Mapping from deal ID to user address to user deposit data
+    mapping(uint256 => mapping(address => UserDeposit)) public userDeposits;
+
+    /// @notice Array of depositors per deal for enumeration
+    mapping(uint256 => address[]) public dealDepositors;
+
+    /// @notice External protocol address for yield generation
+    address public protocolAddress;
+
     /// @notice Protocol fee in basis points (100 = 1%)
     uint256 public protocolFeeBps = 100;
 
@@ -79,8 +95,6 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
     event DealCreated(
         uint256 indexed dealId,
         address depositToken,
-        address targetToken,
-        uint256 targetChainId,
         uint256 duration
     );
     event DealLocked(uint256 indexed dealId, bytes32 indexed channelId);
@@ -109,6 +123,28 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
     event DealCancelled(uint256 indexed dealId);
     event ProtocolFeeUpdated(uint256 newFeeBps);
     event FeeRecipientUpdated(address indexed newRecipient);
+    event ProtocolAddressUpdated(address indexed newProtocol);
+    event DepositedToProtocol(
+        uint256 indexed dealId,
+        address indexed protocol,
+        address token,
+        uint256 amount
+    );
+    event RewardsClaimedFromProtocol(
+        uint256 indexed dealId,
+        address indexed protocol,
+        uint256 rewards
+    );
+    event UserYellowAddressUpdated(
+        uint256 indexed dealId,
+        address indexed user,
+        address indexed yellowAddress
+    );
+    event RewardsDistributedToYellow(
+        uint256 indexed dealId,
+        uint256 totalRewards,
+        uint256 userCount
+    );
 
     /// @notice Custom errors
     error InvalidDeal();
@@ -124,6 +160,9 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
     error DealStillActive();
     error UnauthorizedWithdrawal();
     error ChannelNotLinked();
+    error ProtocolNotSet();
+    error NoRewardsToClaim();
+    error RewardsAlreadyClaimed();
 
     /**
      * @notice Constructor
@@ -149,9 +188,7 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
 
     /**
      * @notice Create a new deal
-     * @param depositToken Token LPs will deposit
-     * @param targetToken Token for operations
-     * @param targetChainId Target chain ID
+     * @param depositToken Token users will deposit (same token for rewards)
      * @param minDeposit Minimum deposit amount
      * @param maxDeposit Maximum deposit amount
      * @param duration Deal duration in seconds
@@ -160,8 +197,6 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
      */
     function createDeal(
         address depositToken,
-        address targetToken,
-        uint256 targetChainId,
         uint256 minDeposit,
         uint256 maxDeposit,
         uint256 duration,
@@ -179,8 +214,6 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
         deals[dealId] = Deal({
             dealId: dealId,
             depositToken: depositToken,
-            targetToken: targetToken,
-            targetChainId: targetChainId,
             minDeposit: minDeposit,
             maxDeposit: maxDeposit,
             totalDeposited: 0,
@@ -191,7 +224,7 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
             channelId: bytes32(0)
         });
 
-        emit DealCreated(dealId, depositToken, targetToken, targetChainId, duration);
+        emit DealCreated(dealId, depositToken, duration);
     }
 
     /**
@@ -200,13 +233,13 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
      * @param amount Amount to deposit
      * @return positionId Minted position NFT ID
      */
-    function deposit(uint256 dealId, uint256 amount) 
-        external 
-        nonReentrant 
-        returns (uint256 positionId) 
+    function deposit(uint256 dealId, uint256 amount)
+        external
+        nonReentrant
+        returns (uint256 positionId)
     {
         Deal storage deal = deals[dealId];
-        
+
         if (deal.status != DealStatus.Active) revert DealNotActive();
         if (amount < deal.minDeposit || amount > deal.maxDeposit) {
             revert InvalidDepositAmount();
@@ -217,9 +250,18 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
 
         // Transfer tokens
         IERC20(deal.depositToken).safeTransferFrom(msg.sender, address(this), amount);
-        
+
         // Update total deposited
         deal.totalDeposited += amount;
+
+        // Track user deposit for reward distribution
+        UserDeposit storage userDep = userDeposits[dealId][msg.sender];
+        if (userDep.amount == 0) {
+            // First deposit from this user - add to depositors array
+            dealDepositors[dealId].push(msg.sender);
+            userDep.yellowAddress = msg.sender; // Default to same address
+        }
+        userDep.amount += amount;
 
         // Mint position NFT
         positionId = positionNFT.mint(msg.sender, dealId, amount);
@@ -381,38 +423,16 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
     }
 
     /**
-     * @notice Compute final PnL using FTSO price feeds
+     * @notice Compute final PnL based on protocol returns
      * @param dealId Deal identifier
      * @return Final PnL in basis points
+     * @dev Simplified for hackathon - protocol dictates actual yield
      */
     function _computeFinalPnL(uint256 dealId) internal view returns (uint256) {
         Deal storage deal = deals[dealId];
-        
-        // Get FTSO symbols for tokens
-        string memory depositSymbol = tokenSymbols[deal.depositToken];
-        string memory targetSymbol = tokenSymbols[deal.targetToken];
-        
-        // If symbols not configured, use expected yield
-        if (bytes(depositSymbol).length == 0 || bytes(targetSymbol).length == 0) {
-            return deal.expectedYield;
-        }
-        
-        // Get price ratio from FTSO
-        try priceReader.getPriceRatio(depositSymbol, targetSymbol) returns (
-            uint256 ratio,
-            uint256 /* timestamp */
-        ) {
-            // Calculate actual yield based on price movement
-            // ratio > 1e18 means depositToken gained value vs targetToken
-            if (ratio > 1e18) {
-                return ((ratio - 1e18) * 10000) / 1e18; // Convert to basis points
-            }
-            // If ratio <= 1e18, no positive yield
-            return 0;
-        } catch {
-            // Fallback to expected yield if price feed fails
-            return deal.expectedYield;
-        }
+        // Protocol dictates the actual yield through rewards claimed
+        // For now, return expected yield as baseline
+        return deal.expectedYield;
     }
 
     /**
@@ -487,6 +507,137 @@ contract DealVault is Ownable2Step, ReentrancyGuard {
         require(newRecipient != address(0), "Invalid recipient");
         feeRecipient = newRecipient;
         emit FeeRecipientUpdated(newRecipient);
+    }
+
+    /**
+     * @notice Set protocol address for yield generation
+     * @param newProtocol Protocol contract address
+     */
+    function setProtocolAddress(address newProtocol) external onlyOwner {
+        require(newProtocol != address(0), "Invalid protocol");
+        protocolAddress = newProtocol;
+        emit ProtocolAddressUpdated(newProtocol);
+    }
+
+    /**
+     * @notice Set user's Yellow Network trading address
+     * @param dealId Deal identifier
+     * @param yellowAddress Yellow Network address for receiving rewards
+     */
+    function setUserYellowAddress(uint256 dealId, address yellowAddress) external {
+        require(yellowAddress != address(0), "Invalid address");
+
+        UserDeposit storage userDep = userDeposits[dealId][msg.sender];
+        require(userDep.amount > 0, "No deposit found");
+
+        userDep.yellowAddress = yellowAddress;
+
+        emit UserYellowAddressUpdated(dealId, msg.sender, yellowAddress);
+    }
+
+    /**
+     * @notice Deposit all deal funds to external protocol
+     * @param dealId Deal identifier
+     */
+    function depositToProtocol(uint256 dealId) external onlyOwner nonReentrant {
+        Deal storage deal = deals[dealId];
+
+        if (deal.status != DealStatus.Locked) revert DealNotLocked();
+        if (protocolAddress == address(0)) revert ProtocolNotSet();
+
+        uint256 amount = deal.totalDeposited;
+        require(amount > 0, "No funds to deposit");
+
+        // Approve protocol to spend tokens
+        IERC20(deal.depositToken).approve(protocolAddress, amount);
+
+        // Call protocol's deposit function
+        (bool success,) = protocolAddress.call(
+            abi.encodeWithSignature(
+                "deposit(address,uint256)",
+                deal.depositToken,
+                amount
+            )
+        );
+        require(success, "Protocol deposit failed");
+
+        emit DepositedToProtocol(dealId, protocolAddress, deal.depositToken, amount);
+    }
+
+    /**
+     * @notice Claim rewards from external protocol
+     * @param dealId Deal identifier
+     * @return rewards Amount of rewards claimed
+     */
+    function claimRewardsFromProtocol(uint256 dealId)
+        external
+        onlyOwner
+        nonReentrant
+        returns (uint256 rewards)
+    {
+        Deal storage deal = deals[dealId];
+
+        if (deal.status != DealStatus.Locked && deal.status != DealStatus.Settling) {
+            revert InvalidDeal();
+        }
+        if (protocolAddress == address(0)) revert ProtocolNotSet();
+
+        // Get balance before
+        uint256 balanceBefore = IERC20(deal.depositToken).balanceOf(address(this));
+
+        // Call protocol's claimRewards function
+        (bool success,) = protocolAddress.call(
+            abi.encodeWithSignature(
+                "claimRewards(address)",
+                deal.depositToken
+            )
+        );
+        require(success, "Protocol claim failed");
+
+        // Calculate rewards received
+        uint256 balanceAfter = IERC20(deal.depositToken).balanceOf(address(this));
+        rewards = balanceAfter - balanceBefore;
+
+        if (rewards == 0) revert NoRewardsToClaim();
+
+        // Calculate each user's proportional share
+        address[] storage depositors = dealDepositors[dealId];
+        for (uint256 i = 0; i < depositors.length; i++) {
+            address user = depositors[i];
+            UserDeposit storage userDep = userDeposits[dealId][user];
+
+            // Proportional share: (userAmount / totalDeposited) * rewards
+            userDep.rewardShare = (userDep.amount * rewards) / deal.totalDeposited;
+        }
+
+        emit RewardsClaimedFromProtocol(dealId, protocolAddress, rewards);
+    }
+
+    /**
+     * @notice Get user's deposit information
+     * @param dealId Deal identifier
+     * @param user User address
+     * @return User deposit data
+     */
+    function getUserDeposit(uint256 dealId, address user)
+        external
+        view
+        returns (UserDeposit memory)
+    {
+        return userDeposits[dealId][user];
+    }
+
+    /**
+     * @notice Get all depositors for a deal
+     * @param dealId Deal identifier
+     * @return Array of depositor addresses
+     */
+    function getDealDepositors(uint256 dealId)
+        external
+        view
+        returns (address[] memory)
+    {
+        return dealDepositors[dealId];
     }
 
     /**
