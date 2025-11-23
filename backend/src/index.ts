@@ -2,7 +2,13 @@
  * Liquium Backend - Main Entry Point
  */
 import 'dotenv/config';
-import express from 'express';
+
+// Add BigInt serialization support for JSON
+(BigInt.prototype as any).toJSON = function() {
+  return this.toString();
+};
+
+import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from './utils/logger';
@@ -11,7 +17,7 @@ import { getPrismaClient, checkDatabaseConnection, disconnectPrisma } from './se
 import { nitroliteService } from './services/nitrolite/NitroliteService';
 import { ftsoService } from './services/price/FTSOPriceService';
 
-const app = express();
+const app: Express = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware

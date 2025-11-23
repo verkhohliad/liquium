@@ -67,8 +67,36 @@ export const dealsApi = {
     return data;
   },
   
+  create: async (dealParams: {
+    depositToken: string;
+    targetToken: string;
+    targetChainId: string;
+    minDeposit?: string;
+    maxDeposit?: string;
+    duration?: string;
+    expectedYield?: string;
+    dealer: string;
+  }) => {
+    const { data } = await api.post('/api/deals', dealParams);
+    return data;
+  },
+  
+  lock: async (id: string) => {
+    const { data } = await api.post(`/api/deals/${id}/lock`);
+    return data;
+  },
+  
+  settle: async (id: string, settlementParams: {
+    finalPrice: string;
+    dealerFinal: string;
+    lpFinal: string;
+  }) => {
+    const { data } = await api.post(`/api/deals/${id}/settle`, settlementParams);
+    return data;
+  },
+  
   getPositions: async (id: string) => {
-    const { data } = await api.get(`/api/deals/${id}/positions`);
+    const { data} = await api.get(`/api/deals/${id}/positions`);
     return data;
   },
 };

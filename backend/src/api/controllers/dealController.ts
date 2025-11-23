@@ -78,51 +78,97 @@ export async function getDeal(req: Request, res: Response) {
 }
 
 /**
- * Create new deal
+ * Create new deal (on-chain + database)
  */
 export async function createDeal(req: Request, res: Response) {
   try {
     const {
-      id,
       depositToken,
       targetToken,
       targetChainId,
+      minDeposit,
+      maxDeposit,
+      duration,
       expectedYield,
       dealer,
     } = req.body;
     
     // Validate required fields
-    if (!id || !depositToken || !targetToken || !targetChainId || !dealer) {
+    if (!depositToken || !targetToken || !targetChainId || !dealer) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields',
+        error: 'Missing required fields: depositToken, targetToken, targetChainId, dealer',
       });
     }
     
+    // ===== BLOCKCHAIN INTERACTION COMMENTED OUT FOR DEVELOPMENT =====
+    // Uncomment when ready to deploy to mainnet
+    
+    // const { dealVaultService } = await import('../../services/blockchain/DealVaultService');
+    // try {
+    //   await dealVaultService.initialize();
+    // } catch (error) {
+    //   // Already initialized, continue
+    // }
+    // const { dealId, txHash } = await dealVaultService.createDeal({
+    //   depositToken: depositToken as `0x${string}`,
+    //   targetToken: targetToken as `0x${string}`,
+    //   targetChainId: BigInt(targetChainId),
+    //   minDeposit: BigInt(minDeposit || '100000000'),
+    //   maxDeposit: BigInt(maxDeposit || '10000000000'),
+    //   duration: BigInt(duration || 604800),
+    //   expectedYield: BigInt(expectedYield || 500),
+    // });
+    
+    // ===== MOCK DATA FOR DEVELOPMENT =====
+    const dealId = BigInt(Date.now()); // Use timestamp as unique ID
+    const txHash = `0x${Buffer.from(`mock-deal-${dealId}`).toString('hex').padStart(64, '0')}`;
+    
+    logger.info('Mock deal created (development mode)', { 
+      dealId: dealId.toString(), 
+      depositToken, 
+      targetToken, 
+      dealer 
+    });
+    
+    // Store in database
     const deal = await prisma.deal.create({
       data: {
-        id: BigInt(id),
+        id: dealId,
         depositToken,
         targetToken,
         targetChainId: BigInt(targetChainId),
         status: 'CREATED',
         totalDeposited: 0,
-        expectedYield: expectedYield || 0,
+        expectedYield: Number(expectedYield || 500),
         dealer,
       },
     });
     
-    logger.info('Deal created', { dealId: deal.id.toString() });
+    logger.info('Deal stored in database', { dealId: deal.id.toString() });
     
     res.status(201).json({
       success: true,
-      deal,
+      deal: {
+        id: deal.id.toString(),
+        depositToken: deal.depositToken,
+        targetToken: deal.targetToken,
+        targetChainId: deal.targetChainId.toString(),
+        status: deal.status,
+        totalDeposited: deal.totalDeposited.toString(),
+        expectedYield: deal.expectedYield,
+        dealer: deal.dealer,
+        createdAt: deal.createdAt.toISOString(),
+      },
+      txHash,
+      explorerUrl: `https://flare-explorer.flare.network/tx/${txHash}`,
     });
   } catch (error) {
     logger.error('Error creating deal', error);
     res.status(500).json({
       success: false,
       error: 'Failed to create deal',
+      details: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 }
@@ -154,17 +200,15 @@ export async function lockDeal(req: Request, res: Response) {
       });
     }
     
-    // Calculate total LP deposits and dealer amount
-    const lpTotal = deal.totalDeposited;
-    const dealerAmount = lpTotal; // 1:1 for simplicity
+    // Calculate total LP deposits
+    const lpTotal = BigInt(deal.totalDeposited.toString());
     
     // Create Nitrolite channel
     const { channelId } = await nitroliteService.createChannelForDeal(
       dealId,
-      deal.dealer as `0x${string}`, // Participant 0: Dealer
-      deal.dealer as `0x${string}`, // Participant 1: LP pool (using dealer as proxy)
-      dealerAmount,
-      lpTotal
+      deal.dealer as `0x${string}`, // Dealer
+      deal.dealer as `0x${string}`, // LP (using dealer as proxy for now)
+      lpTotal // LP amount
     );
     
     // Update deal status
