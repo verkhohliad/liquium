@@ -1,6 +1,7 @@
 # Liquium - DeFi Yield Aggregation Platform
 
-![img.png](img.png)
+<img width="1277" height="638" alt="image" src="https://github.com/user-attachments/assets/a99b36a9-0f9b-41dd-93d3-f6cf1fa47a82" />
+
 
 > **Simplified for Hackathon** - Single-token deposits, protocol-dictated yields, clean and simple.
 
