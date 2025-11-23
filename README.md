@@ -1,5 +1,7 @@
 # Liquium - DeFi Yield Aggregation Platform
 
+![img.png](img.png)
+
 > **Simplified for Hackathon** - Single-token deposits, protocol-dictated yields, clean and simple.
 
 **TL;DR:** Users deposit USDC, we aggregate yields from protocols, distribute rewards proportionally. Simple, clean, effective.
